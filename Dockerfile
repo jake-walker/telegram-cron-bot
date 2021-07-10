@@ -6,4 +6,11 @@ WORKDIR /app
 
 RUN go build -o main .
 
+LABEL org.opencontainers.image.vendor="Jake Walker"
+LABEL org.opencontainers.image.authors="Jake Walker"
+LABEL org.opencontainers.image.licenses="MIT"
+LABEL org.opencontainers.image.title="Telegram Cron Bot"
+LABEL org.opencontainers.image.description="A Telegram bot for creating scheduled tasks"
+LABEL com.centurylinklabs.watchtower.enable="true"
+
 CMD ["/app/main"]
