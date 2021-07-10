@@ -19,5 +19,8 @@ steps:
     when:
       branch:
         - master
+      event:
+        - push
+        - tag
       repo:
-        - jakewalker/telegram-cron-bot
+        - jakew/telegram-cron-bot
