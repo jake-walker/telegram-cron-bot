@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
 	"sync"
 	"time"
 
@@ -37,30 +38,37 @@ func (s *Scheduler) GetTasks() map[string]Task {
 	return s.tasks
 }
 
-func (s *Scheduler) ScheduleNoLock(task Task) string {
+// Schedule a task without locking the scheduler
+func (s *Scheduler) scheduleRaw(task Task) string {
 	id := xid.New().String()
 	s.tasks[id] = task
 	log.Printf("task %v: scheduled job %v for %v\n", id, task.JobName, task.Date)
 	return id
 }
 
-func (s *Scheduler) Schedule(task Task) string {
+// Regular way of scheduling a task
+func (s *Scheduler) Schedule(task Task) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	return s.ScheduleNoLock(task)
+	id := s.scheduleRaw(task)
+	err := s.save()
+	return id, err
 }
 
-func (s *Scheduler) UnscheduleNoLock(id string) {
+// Unschedule a task without locking the scheduler
+func (s *Scheduler) unscheduleRaw(id string) {
 	delete(s.tasks, id)
 	log.Printf("task %v: unscheduled", id)
 }
 
-func (s *Scheduler) Unschedule(id string) {
+// Regular way of unscheduling a task
+func (s *Scheduler) Unschedule(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
-	s.UnscheduleNoLock(id)
+	s.unscheduleRaw(id)
+	err := s.save()
+	return err
 }
 
 func (s *Scheduler) CheckTasks(config *Config, bot *tb.Bot, chat *tb.Chat) {
@@ -69,6 +77,9 @@ func (s *Scheduler) CheckTasks(config *Config, bot *tb.Bot, chat *tb.Chat) {
 
 	//log.Println("checking schedule...")
 	now := time.Now()
+
+	// are changes made to the schedule?
+	changes := false
 
 	for id, task := range s.tasks {
 		// this task is in the future, skip it
@@ -84,7 +95,8 @@ func (s *Scheduler) CheckTasks(config *Config, bot *tb.Bot, chat *tb.Chat) {
 
 		if !found {
 			log.Printf("    job not found, unscheduling")
-			s.UnscheduleNoLock(id)
+			s.unscheduleRaw(id)
+			changes = true
 			continue
 		}
 
@@ -99,23 +111,32 @@ func (s *Scheduler) CheckTasks(config *Config, bot *tb.Bot, chat *tb.Chat) {
 			newTask := s.tasks[id]
 			newTask.Date = nextDate
 			s.tasks[id] = newTask
+			changes = true
 		} else {
 			log.Print("    removing\n")
-			s.UnscheduleNoLock(id)
+			s.unscheduleRaw(id)
+			changes = true
+		}
+	}
+
+	if changes {
+		err := s.save()
+		if err != nil {
+			log.Printf("error saving schedule: %v\n", err)
+			return
 		}
 	}
 }
 
-func (s *Scheduler) Save() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func (s *Scheduler) save() error {
+	log.Println("saving schedule...")
 
 	data, err := json.Marshal(s.tasks)
 	if err != nil {
 		return err
 	}
 
-	err = ioutil.WriteFile("schedule.json", data, 0600)
+	err = ioutil.WriteFile(ConfigDirectory("schedule.json"), data, 0600)
 	return err
 }
 
@@ -123,8 +144,13 @@ func (s *Scheduler) Load() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	data, err := ioutil.ReadFile("schedule.json")
-	if err != nil {
+	log.Println("loading schedule...")
+
+	data, err := ioutil.ReadFile(ConfigDirectory("schedule.json"))
+	if os.IsNotExist(err) {
+		log.Println("schedule.json does not exist")
+		return nil
+	} else if err != nil {
 		return err
 	}
 

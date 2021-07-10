@@ -28,6 +28,10 @@ func getJob(config *Config, name string) (found bool, index int) {
 
 func main() {
 	scheduler = *NewScheduler()
+	err := scheduler.Load()
+	if err != nil {
+		log.Fatalf("failed to load scheduler.json: %v\n", err)
+	}
 
 	config, err := LoadConfig()
 	if err != nil {
@@ -205,6 +209,7 @@ func main() {
 	}(&config, b, targetChat, &scheduler)
 
 	log.Println("starting...")
+	b.Send(targetChat, fmt.Sprintf("Bot started with %v jobs and %v scheduled tasks", len(config.Jobs), len(scheduler.tasks)))
 	b.Start()
 }
 

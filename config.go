@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"path"
 
 	"gopkg.in/yaml.v2"
 )
@@ -18,8 +19,12 @@ type Config struct {
 	Timezone string `yaml:"timezone"`
 }
 
+func ConfigDirectory(filename string) string {
+	return path.Join(os.Getenv("BOT_CONFIG_DIRECTORY"), filename)
+}
+
 func LoadConfig() (Config, error) {
-	f, err := os.Open("config.yml")
+	f, err := os.Open(ConfigDirectory("config.yml"))
 	if err != nil {
 		return Config{}, err
 	}
