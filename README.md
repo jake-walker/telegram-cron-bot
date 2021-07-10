@@ -27,4 +27,6 @@ jobs:
 - `/schedule <jobname> <time> <date>` - Run a job at a certain time (`hhmm`) on a certain date (`yyyymmdd`).
   _e.g. `/schedule test 0000 20220101` - run 'test' at midnight on 01/01/2022._
 - `/schedule <jobname> <time> <date> <interval>` - Same as above, but once completed, reschedule for interval in the future.
-  _e.g. `/schedule test 1121 20210710 1h` - run 'test' at 11:21am on 10/07/2021 and then every hour afterwards._ 
+  _e.g. `/schedule test 1121 20210710 1h` - run 'test' at 11:21am on 10/07/2021 and then every hour afterwards._
+- `/unschedule <taskid>` - Unschedule a task.
+  _e.g. `/unschedule lswdk` - unschedule task `lswdk`._

@@ -9,9 +9,8 @@ import (
 	"sync"
 	"time"
 
+	nanoid "github.com/matoous/go-nanoid/v2"
 	tb "gopkg.in/tucnak/telebot.v2"
-
-	"github.com/rs/xid"
 )
 
 type Task struct {
@@ -40,8 +39,11 @@ func (s *Scheduler) GetTasks() map[string]Task {
 
 // Schedule a task without locking the scheduler
 func (s *Scheduler) scheduleRaw(task Task) string {
-	id := xid.New().String()
+	id, err := nanoid.Generate("abcdefghijklmnopqrstuvwxyz", 5)
 	s.tasks[id] = task
+	if err != nil {
+		log.Fatalf("error generating id: %v\n", err)
+	}
 	log.Printf("task %v: scheduled job %v for %v\n", id, task.JobName, task.Date)
 	return id
 }

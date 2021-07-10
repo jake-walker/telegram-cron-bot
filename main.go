@@ -115,11 +115,11 @@ func main() {
 		}
 
 		tasksString := ""
-		for _, task := range scheduler.tasks {
+		for id, task := range scheduler.tasks {
 			if task.Next > 0 {
-				tasksString += fmt.Sprintf("\n\n**%v**\nJob: %v\nRepeats every %v", task.Date.Format(time.UnixDate), task.JobName, task.Next.String())
+				tasksString += fmt.Sprintf("\n\n**%v**\nID: %v\nJob: %v\nRepeats every %v", task.Date.Format(time.UnixDate), id, task.JobName, task.Next.String())
 			} else {
-				tasksString += fmt.Sprintf("\n\n**%v**\nJob: %v\nDoes not repeat", task.Date.Format(time.UnixDate), task.JobName)
+				tasksString += fmt.Sprintf("\n\n**%v**\nID: %v\nJob: %v\nDoes not repeat", task.Date.Format(time.UnixDate), id, task.JobName)
 			}
 		}
 		b.Send(m.Sender, fmt.Sprintf("There are %v tasks scheduled:%v", len(scheduler.tasks), tasksString), tb.ModeMarkdownV2)
@@ -200,6 +200,29 @@ func main() {
 			repeatText = fmt.Sprintf(" and repeats every %v", interval.String())
 		}
 		b.Send(m.Sender, fmt.Sprintf("Job '%v' scheduled for %v%v", args[0], jobDate.Format(time.UnixDate), repeatText))
+	})
+
+	b.Handle("/unschedule", func(m *tb.Message) {
+		if m.Chat.ID != targetChat.ID {
+			b.Send(m.Sender, "Whoops! You are not authorized to use this bot")
+			return
+		}
+
+		args := strings.Split(m.Payload, " ")
+
+		if len(args) < 1 {
+			b.Send(m.Sender, "Usage: /unschedule <task id>")
+			return
+		}
+
+		err := scheduler.Unschedule(args[0])
+		if err != nil {
+			b.Send(m.Sender, "Error unscheduling")
+			log.Printf("error unscheduling: %v\n", err)
+			return
+		}
+
+		b.Send(m.Sender, fmt.Sprintf("Unscheduled task '%v'", args[0]))
 	})
 
 	go func(cfg *Config, bot *tb.Bot, targetChat *tb.Chat, sch *Scheduler) {
