@@ -7,14 +7,8 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-type Job struct {
-	Name    string   `yaml:"name"`
-	Command []string `yaml:"command"`
-}
-
 type Config struct {
 	Token    string `yaml:"token"`
-	Jobs     []Job  `yaml:"jobs"`
 	ChatId   string `yaml:"chat_id"`
 	Timezone string `yaml:"timezone"`
 }

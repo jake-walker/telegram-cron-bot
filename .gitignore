@@ -134,4 +134,4 @@ modules.xml
 # End of https://www.toptal.com/developers/gitignore/api/go,visualstudiocode,intellij+all
 
 config.yml
-schedule.json
+cron.db
