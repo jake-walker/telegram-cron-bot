@@ -7,7 +7,7 @@ import (
 	tb "gopkg.in/tucnak/telebot.v2"
 )
 
-func CheckTasks(bot *tb.Bot, chat *tb.Chat) {
+func CheckTasks(bot *tb.Bot, chat *tb.Chat, config Config) {
 	log.Println("checking schedule...")
 	now := time.Now()
 
@@ -42,7 +42,7 @@ func CheckTasks(bot *tb.Bot, chat *tb.Chat) {
 			continue
 		}
 
-		rescheduled, err := task.Reschedule()
+		rescheduled, err := task.Reschedule(config.Timezone)
 		if err != nil || !rescheduled {
 			log.Printf("error rescheduling task %v: %v\n", task.Id, err)
 			continue

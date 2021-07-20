@@ -223,7 +223,7 @@ func main() {
 			task.Next = jobDate
 		} else if args[1] == "cron" {
 			task.Cron = strings.Join(args[2:], " ")
-			scheduled, err := task.Reschedule()
+			scheduled, err := task.Reschedule(config.Timezone)
 			if err != nil || !scheduled {
 				b.Send(m.Sender, fmt.Sprintf("Could not create task: %v", err))
 				return
@@ -272,7 +272,7 @@ func main() {
 
 	go func(cfg *Config, bot *tb.Bot, targetChat *tb.Chat) {
 		for range time.Tick(time.Second * 30) {
-			CheckTasks(bot, targetChat)
+			CheckTasks(bot, targetChat, config)
 		}
 	}(&config, b, targetChat)
 

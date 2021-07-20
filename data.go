@@ -24,12 +24,21 @@ type Task struct {
 }
 
 // Returns a bool which is true if rescheduled
-func (t *Task) Reschedule() (bool, error) {
+func (t *Task) Reschedule(timezone string) (bool, error) {
 	if t.Cron == "" {
 		return false, nil
 	}
 
-	now := time.Now()
+	now := time.Now().UTC()
+
+	if timezone != "" {
+		loc, err := time.LoadLocation(timezone)
+		if err != nil {
+			return false, err
+		}
+		now = now.In(loc)
+	}
+
 	nextTime := cronexpr.MustParse(t.Cron).Next(now)
 
 	if nextTime.IsZero() {
