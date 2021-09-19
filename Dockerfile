@@ -13,4 +13,6 @@ LABEL org.opencontainers.image.title="Telegram Cron Bot"
 LABEL org.opencontainers.image.description="A Telegram bot for creating scheduled tasks"
 LABEL com.centurylinklabs.watchtower.enable="true"
 
+ENV BOT_CONFIG_DIRECTORY="/config"
+
 CMD ["/app/main"]
