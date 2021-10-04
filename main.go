@@ -49,7 +49,9 @@ func main() {
 			"_Tasks are scheduled jobs_\n"+
 			"/tasks - Get all tasks\n"+
 			"/newtask - Create a new task\n"+
-			"/deltask - Remove a task\n", tb.ModeMarkdown)
+			"/deltask - Remove a task\n"+
+			"/pause - Temporarily stop a task\n"+
+			"/resume - Start a paused task", tb.ModeMarkdown)
 	})
 
 	b.Handle("/jobs", func(m *tb.Message) {
@@ -169,10 +171,17 @@ func main() {
 
 		tasksString := ""
 		for _, task := range tasks {
+			extra := []string{}
+
+			if task.Paused {
+				extra = append(extra, "PAUSED")
+			}
+
 			tasksString += fmt.Sprintf("\n\n*ID: %v*\n"+
+				"_%v_\n"+
 				"Job: %v\n"+
 				"Cron: `%v`\n"+
-				"Next Run: %v", task.Id, task.JobName, task.Cron, task.Next.Format(time.UnixDate))
+				"Next Run: %v", task.Id, strings.Join(extra, ", "), task.JobName, task.Cron, task.Next.Format(time.UnixDate))
 		}
 		b.Send(m.Sender, fmt.Sprintf("There are %v tasks scheduled:%v", len(tasks), tasksString), tb.ModeMarkdown)
 	})
@@ -268,6 +277,77 @@ func main() {
 		}
 
 		b.Send(m.Sender, fmt.Sprintf("Task %v deleted", task.Id))
+	})
+
+	b.Handle("/pause", func(m *tb.Message) {
+		if m.Chat.ID != targetChat.ID {
+			b.Send(m.Sender, "Whoops! You are not authorized to use this bot")
+			return
+		}
+
+		args := strings.Split(m.Payload, " ")
+		if len(args) < 1 {
+			b.Send(m.Sender, "Usage: /pause <id>")
+			return
+		}
+
+		id, err := strconv.Atoi(args[0])
+		if err != nil {
+			b.Send(m.Sender, fmt.Sprintf("Error parsing task id: %v", err))
+			return
+		}
+
+		task, err := GetTask(id)
+		if err != nil {
+			b.Send(m.Sender, fmt.Sprintf("Error finding task: %v", err))
+			return
+		}
+
+		err = task.Pause(true)
+		if err != nil {
+			b.Send(m.Sender, fmt.Sprintf("Error deleting task: %v", err))
+			return
+		}
+
+		b.Send(m.Sender, fmt.Sprintf("Task %v paused", task.Id))
+	})
+
+	b.Handle("/resume", func(m *tb.Message) {
+		if m.Chat.ID != targetChat.ID {
+			b.Send(m.Sender, "Whoops! You are not authorized to use this bot")
+			return
+		}
+
+		args := strings.Split(m.Payload, " ")
+		if len(args) < 1 {
+			b.Send(m.Sender, "Usage: /resume <id>")
+			return
+		}
+
+		id, err := strconv.Atoi(args[0])
+		if err != nil {
+			b.Send(m.Sender, fmt.Sprintf("Error parsing task id: %v", err))
+			return
+		}
+
+		task, err := GetTask(id)
+		if err != nil {
+			b.Send(m.Sender, fmt.Sprintf("Error finding task: %v", err))
+			return
+		}
+
+		err = task.Pause(false)
+		if err != nil {
+			b.Send(m.Sender, fmt.Sprintf("Error deleting task: %v", err))
+			return
+		}
+
+		rescheduled, err := task.Reschedule(config.Timezone)
+		if err != nil || !rescheduled {
+			log.Printf("error rescheduling task %v: %v\n", task.Id, err)
+		}
+
+		b.Send(m.Sender, fmt.Sprintf("Task %v resumed", task.Id))
 	})
 
 	go func(cfg *Config, bot *tb.Bot, targetChat *tb.Chat) {

@@ -21,6 +21,7 @@ type Task struct {
 	Next    time.Time
 	JobName string
 	Verbose bool
+	Paused  bool
 }
 
 // Returns a bool which is true if rescheduled
@@ -102,6 +103,16 @@ func (t *Task) Delete() error {
 	defer db.Close()
 
 	return db.DeleteStruct(t)
+}
+
+func (t *Task) Pause(paused bool) error {
+	db, err := getDb()
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	return db.UpdateField(t, "Paused", paused)
 }
 
 func AllJobs() ([]Job, error) {

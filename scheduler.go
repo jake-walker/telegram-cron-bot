@@ -17,8 +17,8 @@ func CheckTasks(bot *tb.Bot, chat *tb.Chat, config Config) {
 	}
 
 	for _, task := range tasks {
-		// this task is in the future, skip it
-		if task.Next.After(now) {
+		// this task is in the future or paused, skip it
+		if task.Next.After(now) || task.Paused {
 			continue
 		}
 
