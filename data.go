@@ -2,7 +2,9 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/gorhill/cronexpr"
@@ -13,6 +15,7 @@ import (
 type Job struct {
 	Name    string `storm:"id"`
 	Command []string
+	Env     map[string]string
 }
 
 type Task struct {
@@ -83,6 +86,20 @@ func (j *Job) Delete() error {
 	defer db.Close()
 
 	return db.DeleteStruct(j)
+}
+
+func (j *Job) GetEnv() []string {
+	output := []string{}
+
+	if j.Env == nil {
+		return output
+	}
+
+	for k, v := range j.Env {
+		output = append(output, fmt.Sprintf("%v=%v", strings.ToUpper(k), v))
+	}
+
+	return output
 }
 
 func (t *Task) Save() error {

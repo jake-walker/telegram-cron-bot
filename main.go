@@ -44,7 +44,9 @@ func main() {
 			"/jobs - Get all jobs\n"+
 			"/newjob - Create a new job\n"+
 			"/deljob - Remove a job\n"+
-			"/run - Manually run a job\n\n"+
+			"/run - Manually run a job\n"+
+			"/set - Set a job environment variable\n"+
+			"/get - Get a job environment variable\n\n"+
 			"*Tasks*\n"+
 			"_Tasks are scheduled jobs_\n"+
 			"/tasks - Get all tasks\n"+
@@ -73,7 +75,7 @@ func main() {
 
 		jobsString := ""
 		for _, job := range jobs {
-			jobsString += fmt.Sprintf("\n- %v\n    `%v`", job.Name, job.Command)
+			jobsString += fmt.Sprintf("\n- %v\n    Cmd: `%v`\n    Env: `%v`", job.Name, job.Command, strings.Join(job.GetEnv(), ","))
 		}
 		b.Send(m.Sender, fmt.Sprintf("There are %v jobs:%v", len(jobs), jobsString), tb.ModeMarkdown)
 	})
@@ -350,6 +352,85 @@ func main() {
 		b.Send(m.Sender, fmt.Sprintf("Task %v resumed", task.Id))
 	})
 
+	b.Handle("/set", func(m *tb.Message) {
+		if m.Chat.ID != targetChat.ID {
+			b.Send(m.Sender, "Whoops! You are not authorized to use this bot")
+			return
+		}
+
+		args := strings.Split(m.Payload, " ")
+		if len(args) < 3 {
+			b.Send(m.Sender, "Usage: /set <job name> <key> <value>")
+			return
+		}
+
+		job, err := GetJob(args[0])
+		if err != nil {
+			b.Send(m.Sender, fmt.Sprintf("Error finding job: %v", err))
+			return
+		}
+
+		key := strings.TrimSpace(args[1])
+		val := strings.TrimSpace(args[2])
+		if key == "" || val == "" {
+			b.Send(m.Sender, "The key or value is blank")
+			return
+		}
+
+		if job.Env == nil {
+			job.Env = make(map[string]string)
+		}
+
+		job.Env[args[1]] = args[2]
+		err = job.Save()
+		if err != nil {
+			b.Send(m.Sender, fmt.Sprintf("Error saving job: %v", err))
+			return
+		}
+
+		b.Send(m.Sender, fmt.Sprintf("'%v' has been set to '%v' on job '%v'", args[1], args[2], job.Name))
+	})
+
+	b.Handle("/get", func(m *tb.Message) {
+		if m.Chat.ID != targetChat.ID {
+			b.Send(m.Sender, "Whoops! You are not authorized to use this bot")
+			return
+		}
+
+		args := strings.Split(m.Payload, " ")
+		if len(args) < 1 {
+			b.Send(m.Sender, "Usage: /get <job_name> <key?>")
+			return
+		}
+
+		job, err := GetJob(args[0])
+		if err != nil {
+			b.Send(m.Sender, fmt.Sprintf("Error finding job: %v", err))
+			return
+		}
+
+		if job.Env == nil {
+			job.Env = make(map[string]string)
+		}
+
+		if len(args) < 2 {
+			output := fmt.Sprintf("Job '%v' has the following environment variables:\n\n", job.Name)
+			for k, v := range job.Env {
+				output = output + fmt.Sprintf("- '%v' = '%v'\n", k, v)
+			}
+			b.Send(m.Sender, output)
+			return
+		}
+
+		val, set := job.Env[args[1]]
+		if !set {
+			b.Send(m.Sender, fmt.Sprintf("Job '%v' does not have '%v' set", job.Name, args[1]))
+			return
+		}
+
+		b.Send(m.Sender, fmt.Sprintf("Job '%v' has '%v' set as '%v'", job.Name, args[1], val))
+	})
+
 	go func(cfg *Config, bot *tb.Bot, targetChat *tb.Chat) {
 		for range time.Tick(time.Second * 30) {
 			CheckTasks(bot, targetChat, config)
@@ -362,8 +443,10 @@ func main() {
 }
 
 func (j *Job) run(b *tb.Bot, targetChat *tb.Chat, verbose bool) {
-	//b.Send(targetChat, fmt.Sprintf("Running job '%v'...", j.Name))
-	out, err := exec.Command(j.Command[0], j.Command[1:]...).CombinedOutput()
+	cmd := exec.Command(j.Command[0], j.Command[1:]...)
+	cmd.Env = j.GetEnv()
+	out, err := cmd.CombinedOutput()
+
 	if err != nil {
 		b.Send(targetChat, fmt.Sprintf("❌ Job '%v' failed: `%v`", j.Name, err), tb.ModeMarkdownV2)
 	} else {
