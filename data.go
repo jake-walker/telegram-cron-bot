@@ -12,6 +12,30 @@ import (
 	"github.com/asdine/storm"
 )
 
+type JobOutputType int64
+
+const (
+	OutputNone JobOutputType = iota
+	OutputResult
+	OutputLastLine
+	OutputFull
+)
+
+func OutputTypeToString(outputType JobOutputType) string {
+	switch outputType {
+	case OutputNone:
+		return "no output shown except for errors"
+	case OutputResult:
+		return "only result shown"
+	case OutputLastLine:
+		return "only last line shown"
+	case OutputFull:
+		return "all output shown"
+	default:
+		return "?"
+	}
+}
+
 type Job struct {
 	Name    string `storm:"id"`
 	Command []string
@@ -19,12 +43,12 @@ type Job struct {
 }
 
 type Task struct {
-	Id      int `storm:"id,increment"`
-	Cron    string
-	Next    time.Time
-	JobName string
-	Verbose bool
-	Paused  bool
+	Id         int `storm:"id,increment"`
+	Cron       string
+	Next       time.Time
+	JobName    string
+	OutputType JobOutputType
+	Paused     bool
 }
 
 // Returns a bool which is true if rescheduled

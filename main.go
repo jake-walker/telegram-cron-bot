@@ -53,7 +53,8 @@ func main() {
 			"/newtask - Create a new task\n"+
 			"/deltask - Remove a task\n"+
 			"/pause - Temporarily stop a task\n"+
-			"/resume - Start a paused task", tb.ModeMarkdown)
+			"/resume - Start a paused task\n"+
+			"/setoutput - Set the verbosity of a task", tb.ModeMarkdown)
 	})
 
 	b.Handle("/jobs", func(m *tb.Message) {
@@ -151,7 +152,7 @@ func main() {
 			return
 		}
 
-		job.run(b, targetChat, true)
+		job.run(b, targetChat, OutputFull)
 	})
 
 	b.Handle("/tasks", func(m *tb.Message) {
@@ -183,7 +184,8 @@ func main() {
 				"_%v_\n"+
 				"Job: %v\n"+
 				"Cron: `%v`\n"+
-				"Next Run: %v", task.Id, strings.Join(extra, ", "), task.JobName, task.Cron, task.Next.Format(time.UnixDate))
+				"Output: %v\n"+
+				"Next Run: %v", task.Id, strings.Join(extra, ", "), task.JobName, task.Cron, OutputTypeToString(task.OutputType), task.Next.Format(time.UnixDate))
 		}
 		b.Send(m.Sender, fmt.Sprintf("There are %v tasks scheduled:%v", len(tasks), tasksString), tb.ModeMarkdown)
 	})
@@ -208,7 +210,8 @@ func main() {
 		}
 
 		task := Task{
-			JobName: job.Name,
+			JobName:    job.Name,
+			OutputType: OutputFull,
 		}
 
 		if args[1] == "once" {
@@ -431,6 +434,53 @@ func main() {
 		b.Send(m.Sender, fmt.Sprintf("Job '%v' has '%v' set as '%v'", job.Name, args[1], val))
 	})
 
+	b.Handle("/setoutput", func(m *tb.Message) {
+		if m.Chat.ID != targetChat.ID {
+			b.Send(m.Sender, "Whoops! You are not authorized to use this bot")
+			return
+		}
+
+		args := strings.Split(m.Payload, " ")
+		if len(args) < 2 {
+			b.Send(m.Sender, "Usage: /setoutput <id> <type>")
+			return
+		}
+
+		id, err := strconv.Atoi(args[0])
+		if err != nil {
+			b.Send(m.Sender, fmt.Sprintf("Error parsing task id: %v", err))
+			return
+		}
+
+		task, err := GetTask(id)
+		if err != nil {
+			b.Send(m.Sender, fmt.Sprintf("Error finding task: %v", err))
+			return
+		}
+
+		switch strings.ToLower(strings.TrimSpace(args[1])) {
+		case "none":
+			task.OutputType = OutputNone
+		case "result":
+			task.OutputType = OutputResult
+		case "last":
+			task.OutputType = OutputLastLine
+		case "all":
+			task.OutputType = OutputFull
+		default:
+			b.Send(m.Sender, "Unknown output type. It can be 'none', 'result', 'last' or 'all'.")
+			return
+		}
+
+		err = task.Save()
+		if err != nil {
+			b.Send(m.Sender, fmt.Sprintf("Error saving task: %v", err))
+			return
+		}
+
+		b.Send(m.Sender, fmt.Sprintf("Task %v output set to %v", task.Id, OutputTypeToString(task.OutputType)))
+	})
+
 	go func(cfg *Config, bot *tb.Bot, targetChat *tb.Chat) {
 		for range time.Tick(time.Second * 30) {
 			CheckTasks(bot, targetChat, config)
@@ -442,18 +492,46 @@ func main() {
 	b.Start()
 }
 
-func (j *Job) run(b *tb.Bot, targetChat *tb.Chat, verbose bool) {
+func (j *Job) run(b *tb.Bot, targetChat *tb.Chat, outputType JobOutputType) {
 	cmd := exec.Command(j.Command[0], j.Command[1:]...)
 	cmd.Env = j.GetEnv()
 	out, err := cmd.CombinedOutput()
 
-	if err != nil {
-		b.Send(targetChat, fmt.Sprintf("❌ Job '%v' failed: `%v`", j.Name, err), tb.ModeMarkdownV2)
-	} else {
-		b.Send(targetChat, fmt.Sprintf("✅ Job '%v' successful", j.Name))
+	if err != nil && outputType == OutputNone {
+		outputType = OutputLastLine
 	}
 
-	if err != nil || verbose {
-		b.Send(targetChat, "```\n"+string(out)+"\n```", tb.ModeMarkdownV2)
+	msg := ""
+
+	if err == nil {
+		msg = msg + "✅ "
+	} else {
+		msg = msg + "❌ "
+	}
+
+	if outputType == OutputFull || outputType == OutputResult {
+		if err != nil {
+			msg = msg + fmt.Sprintf("Job '%v' failed: %v", j.Name, err)
+		} else {
+			msg = msg + fmt.Sprintf("Job '%v' completed", j.Name)
+		}
+	}
+
+	if outputType == OutputFull {
+		msg = msg + fmt.Sprintf("\n\n%v", string(out))
+	}
+
+	if outputType == OutputLastLine {
+		lines := strings.Split(string(out), "\n")
+		for i := len(lines) - 1; i >= 0; i-- {
+			if strings.TrimSpace(lines[i]) != "" {
+				msg = msg + lines[i]
+				break
+			}
+		}
+	}
+
+	if outputType != OutputNone {
+		b.Send(targetChat, msg)
 	}
 }

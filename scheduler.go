@@ -33,7 +33,7 @@ func CheckTasks(bot *tb.Bot, chat *tb.Chat, config Config) {
 		}
 
 		log.Print("    running job\n")
-		job.run(bot, chat, task.Verbose)
+		job.run(bot, chat, task.OutputType)
 
 		if task.Cron == "" {
 			// task done, unschedule
