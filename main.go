@@ -373,7 +373,7 @@ func main() {
 			return
 		}
 
-		key := strings.TrimSpace(args[1])
+		key := strings.ToUpper(strings.TrimSpace(args[1]))
 		val := strings.TrimSpace(args[2])
 		if key == "" || val == "" {
 			b.Send(m.Sender, "The key or value is blank")
